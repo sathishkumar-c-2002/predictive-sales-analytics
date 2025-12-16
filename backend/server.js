@@ -120,8 +120,20 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
     currentDataFile = req.file.originalname;
 
     // Determine Python path (same logic as predict)
-    const pythonPath = path.join(__dirname, 'model/venv/Scripts/python.exe');
-    const cmd = fs.existsSync(pythonPath) ? pythonPath : 'python';
+    // Dynamic Python Path Resolution
+    const venvPathWindows = path.join(__dirname, 'model/venv/Scripts/python.exe');
+    const venvPathLinux = path.join(__dirname, 'model/venv/bin/python');
+
+    let cmd = 'python'; // Default fallback
+    if (fs.existsSync(venvPathWindows)) {
+        cmd = venvPathWindows;
+    } else if (fs.existsSync(venvPathLinux)) {
+        cmd = venvPathLinux;
+    } else {
+        if (process.platform === 'linux') {
+            cmd = 'python3';
+        }
+    }
 
     // Path to training script
     const trainScript = path.join(__dirname, 'model/train.py');
@@ -233,8 +245,12 @@ except Exception as e:
     print(json.dumps({"error": str(e)}))
 `;
 
-    const pythonPath = path.join(__dirname, 'model/venv/Scripts/python.exe');
-    const cmd = fs.existsSync(pythonPath) ? pythonPath : 'python';
+    const venvPathWindows = path.join(__dirname, 'model/venv/Scripts/python.exe');
+    const venvPathLinux = path.join(__dirname, 'model/venv/bin/python');
+    let cmd = 'python';
+    if (fs.existsSync(venvPathWindows)) cmd = venvPathWindows;
+    else if (fs.existsSync(venvPathLinux)) cmd = venvPathLinux;
+    else if (process.platform === 'linux') cmd = 'python3';
 
     const process = spawn(cmd, ['-c', pythonCode]);
 
@@ -269,9 +285,6 @@ except Exception as e:
     });
 });
 
-app.get('/test',async(req,res)=>{
-    res.json({"a":1})
-})
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
