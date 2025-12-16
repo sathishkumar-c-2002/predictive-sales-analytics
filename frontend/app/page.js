@@ -53,7 +53,7 @@ export default function Home() {
   const fetchSalesData = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/sales');
+      const res = await fetch('https://predictive-sales-analytics.onrender.com/api/sales');
       const data = await res.json();
       setSalesData(data);
       // Extract unique regions (still useful for historical data display if needed)
@@ -68,7 +68,7 @@ export default function Home() {
 
   const fetchMetadata = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/metadata');
+      const res = await fetch('https://predictive-sales-analytics.onrender.com/api/metadata');
       if (res.ok) {
         const meta = await res.json();
         setModelMetadata(meta);
@@ -106,7 +106,7 @@ export default function Home() {
     formData.append('file', file);
 
     try {
-      const res = await fetch('http://localhost:5000/api/upload', {
+      const res = await fetch('https://predictive-sales-analytics.onrender.com/api/upload', {
         method: 'POST',
         body: formData
       });
@@ -135,7 +135,7 @@ export default function Home() {
     setLoading(true);
     setPrediction(null);
     try {
-      const res = await fetch('http://localhost:5000/api/predict', {
+      const res = await fetch('https://predictive-sales-analytics.onrender.com/api/predict', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
