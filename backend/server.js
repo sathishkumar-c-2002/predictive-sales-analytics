@@ -285,6 +285,10 @@ except Exception as e:
     });
 });
 
+app.get('/test',async(req,res)=>{
+    res.json({a:1})
+})
+
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
