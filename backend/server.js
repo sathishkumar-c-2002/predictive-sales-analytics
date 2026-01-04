@@ -205,85 +205,36 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         });
     }
 
-    // Cleanup: Delete old CSVs and model artifacts
+    // Don't delete model artifacts - keep using pre-trained model
+    // Just cleanup old CSV files
     const modelDir = path.join(__dirname, 'model');
     try {
         const files = fs.readdirSync(modelDir);
         files.forEach(file => {
             const filePath = path.join(modelDir, file);
-            // Delete if it's a CSV and NOT the current uploaded file AND NOT the template
-            // OR if it's a model artifact
-            if (
-                (file.endsWith('.csv') && file !== req.file.originalname && file !== 'sample_template.csv') ||
-                file.endsWith('.pkl') ||
-                file === 'model_metadata.json'
-            ) {
+            // Only delete old CSVs (not the current one and not the template)
+            if (file.endsWith('.csv') && file !== req.file.originalname && file !== 'sample_template.csv') {
                 fs.unlinkSync(filePath);
                 console.log(`Deleted old file: ${file}`);
             }
         });
     } catch (err) {
         console.error("Error during cleanup:", err);
-        // Continue anyway, don't block upload
     }
 
-    console.log(`CSV validated and uploaded: ${req.file.originalname}. Starting model training...`);
+    console.log(`CSV validated and uploaded: ${req.file.originalname}. Loading data...`);
 
     // Update current file reference
     currentDataFile = req.file.originalname;
 
-    // Determine Python path (same logic as predict)
-    // Dynamic Python Path Resolution
-    const venvPathWindows = path.join(__dirname, 'model/venv/Scripts/python.exe');
-    const venvPathLinux = path.join(__dirname, 'model/venv/bin/python');
+    // Reset and reload data (no training - use pre-trained model)
+    salesData = [];
+    loadData();
 
-    let cmd = 'python'; // Default fallback
-    if (fs.existsSync(venvPathWindows)) {
-        cmd = venvPathWindows;
-    } else if (fs.existsSync(venvPathLinux)) {
-        cmd = venvPathLinux;
-    } else {
-        if (process.platform === 'linux') {
-            cmd = 'python3';
-        }
-    }
-
-    // Path to training script
-    const trainScript = path.join(__dirname, 'model/train.py');
-
-    // Pass the filename as argument
-    const trainProcess = spawn(cmd, [trainScript, currentDataFile], {
-        cwd: path.join(__dirname, 'model')
-    });
-    console.log(`Spawning Python process: ${cmd} ${trainScript} ${currentDataFile}`);
-
-    let output = '';
-
-    trainProcess.on('error', (err) => {
-        console.error('Failed to start Python process:', err);
-        res.status(500).json({ error: 'Failed to start training script', details: err.message });
-    });
-
-    trainProcess.stdout.on('data', (data) => {
-        console.log(`Training stdout: ${data}`);
-        output += data.toString();
-    });
-
-    trainProcess.stderr.on('data', (data) => {
-        console.error(`Training stderr: ${data}`);
-    });
-
-    trainProcess.on('close', (code) => {
-        if (code === 0) {
-            console.log('Model training completed successfully.');
-            // Reset and reload
-            salesData = [];
-            loadData();
-            res.json({ message: 'Data updated and model retrained successfully', output: output });
-        } else {
-            console.error('Model training failed.');
-            res.status(500).json({ error: 'Model training failed', details: output });
-        }
+    res.json({
+        message: 'Data uploaded successfully! Using pre-trained model for predictions.',
+        file: req.file.originalname,
+        rows_loaded: 'Loading in background...'
     });
 });
 
