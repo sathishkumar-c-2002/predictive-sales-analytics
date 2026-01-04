@@ -43,10 +43,49 @@ export default function Home() {
   // Format Info Modal
   const [showFormatInfo, setShowFormatInfo] = useState(false);
 
+  // Server Wake-up State (Render free tier sleeps after inactivity)
+  const [serverReady, setServerReady] = useState(false);
+  const [wakeUpMessage, setWakeUpMessage] = useState('Waking up server...');
+
+  // Wake up server on page load
   useEffect(() => {
-    fetchSalesData();
-    fetchMetadata();
+    wakeUpServer();
   }, []);
+
+  const wakeUpServer = async () => {
+    setServerReady(false);
+    setWakeUpMessage('Initializing model training...');
+
+    let attempts = 0;
+    const maxAttempts = 30; // Max 30 attempts (about 60 seconds)
+
+    while (attempts < maxAttempts) {
+      try {
+        setWakeUpMessage(`Training model... (step ${attempts + 1})`);
+        const res = await fetch(`${API_BASE}/test`, {
+          method: 'GET',
+          signal: AbortSignal.timeout(10000) // 10 second timeout per attempt
+        });
+
+        if (res.ok) {
+          setWakeUpMessage('Model trained! Loading dashboard...');
+          setServerReady(true);
+          // Now fetch the actual data
+          fetchSalesData();
+          fetchMetadata();
+          return;
+        }
+      } catch (error) {
+        console.log(`Wake-up attempt ${attempts + 1} failed:`, error.message);
+      }
+
+      attempts++;
+      // Wait 2 seconds before next attempt
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+
+    setWakeUpMessage('Server is taking too long. Please refresh the page.');
+  };
 
   const fetchSalesData = async () => {
     setLoading(true);
@@ -86,11 +125,9 @@ export default function Home() {
     }
   };
 
-  const handleInputChange = (featureName, value) => {
-    setDynamicForm(prev => ({
-      ...prev,
-      [featureName]: value
-    }));
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setDynamicForm(prev => ({ ...prev, [name]: value }));
   };
 
   const handleDownloadTemplate = () => {
@@ -143,11 +180,22 @@ export default function Home() {
     e.preventDefault();
     setLoading(true);
     setPrediction(null);
+
+    // Convert numeric inputs
+    const payload = { ...dynamicForm };
+    if (modelMetadata) {
+      modelMetadata.features.forEach(f => {
+        if (f.type !== 'date' && f.type !== 'categorical') {
+          payload[f.name] = parseFloat(payload[f.name]);
+        }
+      });
+    }
+
     try {
       const res = await fetch(`${API_BASE}/api/predict`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dynamicForm),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (data.error) {
@@ -182,7 +230,7 @@ export default function Home() {
         data: sales,
         borderColor: 'rgb(59, 130, 246)',
         backgroundColor: 'rgba(59, 130, 246, 0.5)',
-        tension: 0.1
+        tension: 0.4
       },
     ],
   };
@@ -215,6 +263,26 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gray-50 p-6 md:p-12 font-sans text-gray-800">
+
+      {/* Server Wake-up Loading Overlay */}
+      {!serverReady && (
+        <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md mx-4 text-center space-y-6">
+            <div className="w-16 h-16 mx-auto border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold text-gray-800">🚀 Training Model</h2>
+              <p className="text-gray-600 text-sm">
+                Server is training the model with the latest data. Please wait a moment...
+              </p>
+              <p className="text-blue-600 font-medium mt-4">{wakeUpMessage}</p>
+            </div>
+            <div className="text-xs text-gray-400">
+              This may take 30-60 seconds
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto space-y-8">
 
         {/* Header */}
