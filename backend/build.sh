@@ -1,6 +1,10 @@
 #!/bin/bash
-# Install Node.js dependencies
+set -e
+
+echo "Installing Node.js dependencies..."
 npm install
 
-# Install Python dependencies
-pip install pandas numpy scikit-learn joblib
+echo "Installing Python dependencies..."
+pip3 install --user pandas numpy scikit-learn joblib || pip install --user pandas numpy scikit-learn joblib
+
+echo "Build complete!"
