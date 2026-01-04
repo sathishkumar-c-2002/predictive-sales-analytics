@@ -9,7 +9,17 @@ const multer = require('multer');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
+// CORS Configuration - Allow all origins with all methods
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    credentials: false
+}));
+
+// Handle preflight requests for all routes
+app.options('*', cors());
+
 app.use(express.json());
 
 // Mock Database
