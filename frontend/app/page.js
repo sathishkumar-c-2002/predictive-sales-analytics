@@ -125,8 +125,7 @@ export default function Home() {
     }
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
+  const handleInputChange = (name, value) => {
     setDynamicForm(prev => ({ ...prev, [name]: value }));
   };
 
@@ -186,7 +185,8 @@ export default function Home() {
     if (modelMetadata) {
       modelMetadata.features.forEach(f => {
         if (f.type !== 'date' && f.type !== 'categorical') {
-          payload[f.name] = parseFloat(payload[f.name]);
+          // Convert to float, default to 0 if empty or invalid
+          payload[f.name] = parseFloat(payload[f.name]) || 0;
         }
       });
     }
@@ -298,55 +298,46 @@ export default function Home() {
           <h2 className="text-xl font-semibold mb-4 text-gray-700">Historical Trends</h2>
           <div className="h-[500px] w-full flex items-center justify-center bg-gray-50 rounded-lg border border-gray-100 p-2">
             {loading ? (
-              <div className="animate-pulse text-gray-400">Loading sales data...</div>
-            ) : (
+              <div className="text-gray-400 animate-pulse">Loading data...</div>
+            ) : salesData.length > 0 ? (
               <Line options={chartOptions} data={lineChartData} />
+            ) : (
+              <div className="text-gray-400">No data available</div>
             )}
           </div>
         </section>
 
         {/* 2. Upload Section with Format Info */}
         <section className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <h2 className="text-xl font-semibold text-gray-700">📤 Upload Sales Data</h2>
-            <button
-              onClick={() => setShowFormatInfo(!showFormatInfo)}
-              className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
-            >
-              {showFormatInfo ? '✕ Hide Format' : 'ℹ️ View Required Format'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleDownloadSample}
+                className="px-4 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors flex items-center gap-2"
+              >
+                📊 Download Sample (60 rows)
+              </button>
+              <button
+                onClick={() => setShowFormatInfo(!showFormatInfo)}
+                className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-2"
+              >
+                ℹ️ {showFormatInfo ? 'Hide Format' : 'View Required Format'}
+              </button>
+            </div>
           </div>
 
           {/* Format Info Panel */}
           {showFormatInfo && (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-blue-900">⚠️ Required CSV Format</h3>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleDownloadSample}
-                    className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
-                  >
-                    📊 Download Sample (60 rows)
-                  </button>
-                  <button
-                    onClick={handleDownloadTemplate}
-                    className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    ⬇️ Download Template
-                  </button>
-                </div>
-              </div>
-              <p className="text-sm text-blue-800">
-                Your CSV file <strong>must contain exactly these 9 columns</strong> in any order:
-              </p>
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 animate-in fade-in slide-in-from-top-2">
+              <h3 className="text-sm font-bold text-blue-800 mb-2 uppercase tracking-wider">Required CSV Columns</h3>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-blue-100">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs text-blue-600 bg-blue-100 uppercase">
                     <tr>
-                      <th className="px-3 py-2 text-left font-semibold text-blue-900">Column Name</th>
-                      <th className="px-3 py-2 text-left font-semibold text-blue-900">Type</th>
-                      <th className="px-3 py-2 text-left font-semibold text-blue-900">Example</th>
+                      <th className="px-3 py-2 rounded-tl-lg">Column Name</th>
+                      <th className="px-3 py-2">Data Type</th>
+                      <th className="px-3 py-2 rounded-tr-lg">Example</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-blue-100">
@@ -359,6 +350,14 @@ export default function Home() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={handleDownloadTemplate}
+                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  ⬇️ Download Template
+                </button>
               </div>
             </div>
           )}
@@ -468,8 +467,8 @@ export default function Home() {
                         type="number"
                         step="any"
                         className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-sm"
-                        value={dynamicForm[feature.name] || 0}
-                        onChange={(e) => handleInputChange(feature.name, parseFloat(e.target.value) || 0)}
+                        value={dynamicForm[feature.name] || ''}
+                        onChange={(e) => handleInputChange(feature.name, e.target.value)}
                       />
                     )}
                   </div>
