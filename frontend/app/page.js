@@ -25,8 +25,8 @@ ChartJS.register(
   Legend
 );
 
-const API_BASE = 'http://localhost:5000';
-// const API_BASE = 'https://predictive-sales-analytics.onrender.com'; // Use for production
+// const API_BASE = 'http://localhost:5000';
+const API_BASE = 'https://predictive-sales-analytics.onrender.com'; // Use for production
 
 export default function Home() {
   const [salesData, setSalesData] = useState([]);
