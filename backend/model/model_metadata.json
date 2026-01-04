@@ -50,15 +50,15 @@
     }
   ],
   "model_metrics": {
-    "train_mae": 595.69,
-    "test_mae": 1621.63,
-    "dataset_size": 60,
+    "train_mae": 1960.98,
+    "test_mae": 3114.77,
+    "dataset_size": 10,
     "feature_importance": {
-      "marketing_spend": 0.4524,
-      "unit_price": 0.4461,
-      "units_sold": 0.0888,
-      "sales_channel_encoded": 0.0035,
-      "day_of_week": 0.0028
+      "unit_price": 0.4449,
+      "marketing_spend": 0.3484,
+      "units_sold": 0.1293,
+      "day_of_week": 0.0287,
+      "day_of_year": 0.0194
     }
   }
 }

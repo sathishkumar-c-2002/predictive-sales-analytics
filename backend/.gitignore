@@ -4,11 +4,7 @@ node_modules/
 # Python virtual environment
 model/venv/
 
-# Model artifacts (generated)
-model/*.pkl
-model/model_metadata.json
-
-# Uploaded CSV files (except template)
+# Uploaded CSV files (except templates)
 model/*.csv
 !model/sample_template.csv
 
@@ -18,3 +14,6 @@ model/*.csv
 # Environment
 .env
 .env.local
+
+# Note: Model files (.pkl, model_metadata.json) are intentionally tracked
+# to provide a pre-trained model for production deployment
