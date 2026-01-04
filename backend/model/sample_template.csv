@@ -1,0 +1,11 @@
+date,region,product_category,sales_channel,units_sold,unit_price,marketing_spend,is_holiday,sales
+2024-01-01,North,Electronics,Online,150,299.99,1200,0,44998.50
+2024-01-01,South,Clothing,Offline,85,49.99,800,0,4249.15
+2024-01-01,East,Electronics,Online,120,299.99,1500,0,35998.80
+2024-01-01,West,Groceries,Offline,320,15.50,600,0,4960.00
+2024-01-02,North,Clothing,Online,95,59.99,900,0,5699.05
+2024-01-02,South,Electronics,Offline,75,349.99,1100,0,26249.25
+2024-01-02,East,Groceries,Online,280,12.99,500,0,3637.20
+2024-01-02,West,Electronics,Online,110,279.99,1400,0,30798.90
+2024-01-03,North,Groceries,Offline,450,8.99,400,0,4045.50
+2024-01-03,South,Clothing,Online,130,44.99,950,0,5848.70

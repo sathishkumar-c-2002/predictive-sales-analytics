@@ -81,15 +81,118 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
+// ========== FIXED CSV SCHEMA ==========
+// Users MUST upload CSV with these exact columns
+const REQUIRED_COLUMNS = [
+    'date',           // Format: YYYY-MM-DD
+    'region',         // e.g., North, South, East, West
+    'product_category', // e.g., Electronics, Clothing, Groceries
+    'sales_channel',  // Online or Offline
+    'units_sold',     // Numeric
+    'unit_price',     // Numeric (decimal)
+    'marketing_spend', // Numeric (decimal)
+    'is_holiday',     // 0 or 1
+    'sales'           // Numeric - TARGET column for prediction
+];
+
+// Validate CSV columns
+const validateCSVColumns = (filePath) => {
+    return new Promise((resolve, reject) => {
+        const results = [];
+        fs.createReadStream(filePath)
+            .pipe(csv())
+            .on('headers', (headers) => {
+                const normalizedHeaders = headers.map(h => h.trim().toLowerCase());
+                const normalizedRequired = REQUIRED_COLUMNS.map(c => c.toLowerCase());
+
+                const missingColumns = normalizedRequired.filter(col => !normalizedHeaders.includes(col));
+                const extraColumns = normalizedHeaders.filter(col => !normalizedRequired.includes(col));
+
+                if (missingColumns.length > 0 || extraColumns.length > 0) {
+                    let errorMsg = 'CSV Format Error:\n';
+                    if (missingColumns.length > 0) {
+                        errorMsg += `Missing required columns: ${missingColumns.join(', ')}\n`;
+                    }
+                    if (extraColumns.length > 0) {
+                        errorMsg += `Unexpected columns found: ${extraColumns.join(', ')}\n`;
+                    }
+                    errorMsg += `\nRequired columns: ${REQUIRED_COLUMNS.join(', ')}`;
+                    reject({ type: 'validation', message: errorMsg });
+                }
+            })
+            .on('data', (row) => results.push(row))
+            .on('end', () => resolve(results))
+            .on('error', (err) => reject({ type: 'parse', message: err.message }));
+    });
+};
+
 // Routes
 
 app.get('/api/sales', (req, res) => {
     res.json(salesData);
 });
 
-app.post('/api/upload', upload.single('file'), (req, res) => {
+// GET: Download sample template
+app.get('/api/template', (req, res) => {
+    const templatePath = path.join(__dirname, 'model/sample_template.csv');
+    if (fs.existsSync(templatePath)) {
+        res.download(templatePath, 'sales_data_template.csv');
+    } else {
+        res.status(404).json({ error: 'Template file not found' });
+    }
+});
+
+// GET: Required format info
+app.get('/api/format', (req, res) => {
+    res.json({
+        required_columns: REQUIRED_COLUMNS,
+        column_descriptions: {
+            date: 'Date in YYYY-MM-DD format (e.g., 2024-01-15)',
+            region: 'Geographic region (e.g., North, South, East, West)',
+            product_category: 'Product type (e.g., Electronics, Clothing, Groceries)',
+            sales_channel: 'Sales channel - must be "Online" or "Offline"',
+            units_sold: 'Number of units sold (integer)',
+            unit_price: 'Price per unit (decimal)',
+            marketing_spend: 'Marketing budget spent (decimal)',
+            is_holiday: 'Holiday indicator - 0 for No, 1 for Yes',
+            sales: 'Total sales amount (decimal) - THIS IS THE TARGET FOR PREDICTION'
+        },
+        example_row: {
+            date: '2024-01-15',
+            region: 'North',
+            product_category: 'Electronics',
+            sales_channel: 'Online',
+            units_sold: 150,
+            unit_price: 299.99,
+            marketing_spend: 1200,
+            is_holiday: 0,
+            sales: 44998.50
+        }
+    });
+});
+
+app.post('/api/upload', upload.single('file'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const uploadedFilePath = path.join(__dirname, 'model', req.file.originalname);
+
+    // ========== VALIDATE CSV FORMAT FIRST ==========
+    try {
+        await validateCSVColumns(uploadedFilePath);
+    } catch (validationError) {
+        // Delete the invalid file
+        try {
+            fs.unlinkSync(uploadedFilePath);
+        } catch (e) { }
+
+        return res.status(400).json({
+            error: 'Invalid CSV Format',
+            details: validationError.message,
+            required_columns: REQUIRED_COLUMNS,
+            download_template: '/api/template'
+        });
     }
 
     // Cleanup: Delete old CSVs and model artifacts
@@ -98,10 +201,10 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
         const files = fs.readdirSync(modelDir);
         files.forEach(file => {
             const filePath = path.join(modelDir, file);
-            // Delete if it's a CSV and NOT the current uploaded file
+            // Delete if it's a CSV and NOT the current uploaded file AND NOT the template
             // OR if it's a model artifact
             if (
-                (file.endsWith('.csv') && file !== req.file.originalname) ||
+                (file.endsWith('.csv') && file !== req.file.originalname && file !== 'sample_template.csv') ||
                 file.endsWith('.pkl') ||
                 file === 'model_metadata.json'
             ) {
@@ -114,7 +217,7 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
         // Continue anyway, don't block upload
     }
 
-    console.log(`New CSV uploaded: ${req.file.originalname}. Starting model training...`);
+    console.log(`CSV validated and uploaded: ${req.file.originalname}. Starting model training...`);
 
     // Update current file reference
     currentDataFile = req.file.originalname;
@@ -139,28 +242,28 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
     const trainScript = path.join(__dirname, 'model/train.py');
 
     // Pass the filename as argument
-    const process = spawn(cmd, [trainScript, currentDataFile], {
+    const trainProcess = spawn(cmd, [trainScript, currentDataFile], {
         cwd: path.join(__dirname, 'model')
     });
     console.log(`Spawning Python process: ${cmd} ${trainScript} ${currentDataFile}`);
 
     let output = '';
 
-    process.on('error', (err) => {
+    trainProcess.on('error', (err) => {
         console.error('Failed to start Python process:', err);
         res.status(500).json({ error: 'Failed to start training script', details: err.message });
     });
 
-    process.stdout.on('data', (data) => {
+    trainProcess.stdout.on('data', (data) => {
         console.log(`Training stdout: ${data}`);
         output += data.toString();
     });
 
-    process.stderr.on('data', (data) => {
+    trainProcess.stderr.on('data', (data) => {
         console.error(`Training stderr: ${data}`);
     });
 
-    process.on('close', (code) => {
+    trainProcess.on('close', (code) => {
         if (code === 0) {
             console.log('Model training completed successfully.');
             // Reset and reload
@@ -185,8 +288,7 @@ app.get('/api/metadata', (req, res) => {
 });
 
 app.post('/api/predict', (req, res) => {
-    // Inline Python script logic
-    // Using forward slashes for paths to avoid running into escape character issues in Python string
+    // Inline Python script for prediction with FIXED SCHEMA
     const modelPath = path.join(__dirname, 'model/sales_model.pkl').replace(/\\/g, '/');
     const featuresPath = path.join(__dirname, 'model/model_features.pkl').replace(/\\/g, '/');
     const encodersPath = path.join(__dirname, 'model/encoders.pkl').replace(/\\/g, '/');
@@ -195,6 +297,10 @@ app.post('/api/predict', (req, res) => {
 import sys, json, joblib
 import pandas as pd
 import numpy as np
+
+# Fixed schema columns
+CATEGORICAL_COLUMNS = ['region', 'product_category', 'sales_channel']
+NUMERIC_COLUMNS = ['units_sold', 'unit_price', 'marketing_spend', 'is_holiday']
 
 try:
     # Load artifacts
@@ -211,33 +317,37 @@ try:
     input_data = json.loads(input_str)
     df = pd.DataFrame([input_data])
     
-    # Preprocessing (Dynamic)
-    # 1. Handle dates if present (assuming input might have date components directly)
+    # 1. Handle date - extract time features
     if 'date' in df.columns:
         df['date'] = pd.to_datetime(df['date'])
         df['day_of_week'] = df['date'].dt.dayofweek
         df['month'] = df['date'].dt.month
         df['day_of_year'] = df['date'].dt.dayofyear
-        
-    # 2. Encode Categoricals
-    for col, le in encoders.items():
-        if col in df.columns:
-            # Handle unknown labels
+        df['week_of_year'] = df['date'].dt.isocalendar().week.astype(int)
+    
+    # 2. Encode Categoricals (matching train.py format)
+    for col in CATEGORICAL_COLUMNS:
+        if col in df.columns and col in encoders:
+            le = encoders[col]
             val = str(df.iloc[0][col])
             if val in le.classes_:
-                df[col] = le.transform([val])
+                df[f'{col}_encoded'] = le.transform([val])
             else:
-                # Fallback for unknown: use first class or specific unknown handling
-                # ideally we should have an 'unknown' class, but for now just use 0
-                df[col] = 0 
+                df[f'{col}_encoded'] = 0
     
-    # 3. Align columns
-    # Reindex checks if col exists, fills 0 if missing, drops extras
+    # 3. Ensure numeric columns are present
+    for col in NUMERIC_COLUMNS:
+        if col not in df.columns:
+            df[col] = 0
+        else:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    
+    # 4. Align columns with training features
     X = df.reindex(columns=features, fill_value=0)
     
     # Predict
-    prediction = model.predict(X)[0]
-    print(json.dumps({"prediction": prediction}))
+    prediction = float(model.predict(X)[0])
+    print(json.dumps({"prediction": round(prediction, 2)}))
 
 except Exception as e:
     import traceback
@@ -252,21 +362,21 @@ except Exception as e:
     else if (fs.existsSync(venvPathLinux)) cmd = venvPathLinux;
     else if (process.platform === 'linux') cmd = 'python3';
 
-    const process = spawn(cmd, ['-c', pythonCode]);
+    const predictProcess = spawn(cmd, ['-c', pythonCode]);
 
-    process.stdin.write(JSON.stringify(req.body));
-    process.stdin.end();
+    predictProcess.stdin.write(JSON.stringify(req.body));
+    predictProcess.stdin.end();
 
     let dataString = '';
-    process.stdout.on('data', (data) => {
+    predictProcess.stdout.on('data', (data) => {
         dataString += data.toString();
     });
 
-    process.stderr.on('data', (data) => {
+    predictProcess.stderr.on('data', (data) => {
         console.error(`Python Stderr: ${data}`);
     });
 
-    process.on('close', (code) => {
+    predictProcess.on('close', (code) => {
         try {
             // Find just the JSON part in case there's other stdout noise
             const jsonStart = dataString.indexOf('{');
@@ -285,8 +395,8 @@ except Exception as e:
     });
 });
 
-app.get('/test',async(req,res)=>{
-    res.json({a:1})
+app.get('/test', async (req, res) => {
+    res.json({ a: 1 })
 })
 
 app.listen(PORT, () => {
