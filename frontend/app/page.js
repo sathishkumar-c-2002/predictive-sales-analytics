@@ -25,8 +25,8 @@ ChartJS.register(
   Legend
 );
 
-// Use Next.js API routes (proxied to backend) - avoids CORS issues
-const API_BASE = '';
+// Direct API calls to Render backend (CORS is enabled)
+const API_BASE = 'https://predictive-sales-analytics.onrender.com';
 
 export default function Home() {
   const [salesData, setSalesData] = useState([]);
