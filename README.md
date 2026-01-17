@@ -228,7 +228,7 @@ MIT License - see [LICENSE](LICENSE)
 ## 👤 Author
 
 **Your Name**
-- GitHub: [@yourusername](https://github.com/sathishkumar-c-2002)
+- GitHub: [C.Sathishkumar](https://github.com/sathishkumar-c-2002)
 
 ---
 
